@@ -1,0 +1,72 @@
+import random
+import simpy
+
+Arrivals = 1/10
+QueueRate = 2/1
+Queues = 35
+Scanners = 1
+ScannerLB = 0.5
+ScannerUB = 1.0
+
+
+Time = 10
+RandomSeed = 42
+
+class Airport(object):
+
+    def __init__(self, env, machines, scanners):
+        self.env = env
+        self.checker = simpy.Resource(env, machines)
+        self.scanner = simpy.Resource(env, scanners)
+
+    def check(self, passenger, queue_rate):
+        yield self.env.timeout(queue_rate)
+
+    def scan(self, passenger, scan_lower_bound, scan_upper_bound):
+        scan_time = random.uniform(ScannerLB,ScannerUB)
+        yield self.env.timeout(scan_time)
+
+    def passenger(env,name,airport):
+        print('%s arrives at the Airport at %.2f.' % (name, env.now))
+        with airport.checker.request() as request:
+            yield request
+
+        print('%s enters the arrival queue at %.2f.' %(name, env.now))
+        yield env.process(airport.check(name,QueueRate))
+        print('%s leaves the arrival queue at %.2f.' %(name, env.now))
+
+        with airport.scanner.request() as request:
+            yield request
+
+        print('%s enters the check queue at %.2f.' %(name, env.now))
+        yield env.process(airport.scan(name,ScannerLB,ScannerUB))
+        print('%s leaves the check queue for the gate %.2f.' %(name, env.now))
+
+    def setup(env,arrivals,queues, scanners):
+        SimAirport = Airport(env, queues, scanners)
+        i = 0
+        while True:
+           yield env.timeout(random.uniform(arrivals - arrivals/10, arrivals + arrivals/10))
+           i += 1
+           env.process(Airport.passenger(env, 'Passenger %d' % i, SimAirport))
+
+random.seed(RandomSeed)
+env = simpy.Environment()
+
+env.process(Airport.setup(env,Arrivals,Queues,Scanners))
+
+# Execute
+env.run(until=Time)
+
+
+
+###Above is the code used in order to use random effects and the values given for passengers
+arriving per minute (5), then going into the boarding pass queue, and then after using a the
+distribution to assign a random service time, the passenger is then sent into the personal
+checking queue. After that queue, that personal checking process has a certain amount of time
+assigned to completion as well. We are looking at the number of people checking boarding pass
+and number of machines at checking to see how we can optimize this queue. This simulation is
+useful to see how the amount of time people are taking affects the queue and the total number
+of people that eventually pass through these queues. From a passenger perspective, we can
+also understand the impact of “choosing” the right line in order to get through the queues earlier
+than those who came before you.###
